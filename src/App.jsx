@@ -4,7 +4,7 @@ import { initializeApp } from 'firebase/app';
 import { getAuth, onAuthStateChanged, signInWithEmailAndPassword, createUserWithEmailAndPassword, signOut } from 'firebase/auth';
 import { getFirestore, doc, setDoc, onSnapshot } from 'firebase/firestore';
 
-// --- CONFIGURAÇÃO DO FIREBASE (MANTIDA) ---
+// --- CONFIGURAÇÃO DO FIREBASE ---
 const firebaseConfig = {
   apiKey: "AIzaSyBS4HSc6Oen9kitBpczNYhPlTdXDwFFyw4",
   authDomain: "controleponto-384ec.firebaseapp.com",
@@ -19,14 +19,15 @@ const auth = getAuth(app);
 const db = getFirestore(app);
 const appId = "meu-ponto-oficial";
 
-// --- Constantes de Cálculo ---
+// --- CONSTANTES DE CÁLCULO ---
 const BASE_DAILY_VALUE_NORMAL = 78.00; 
 const HOURLY_RATE = 8.10; 
 const NIGHT_SHIFT_ADDITIONAL = 0.20; 
 const DISCOUNT_RATE = 0.11; 
 
-// Duração das Extras (em horas decimais)
-const WEEKDAY_EXTRA_DURATION = 2.67; // Aprox 2h 40min (02:20 até 05:00)
+// Duração das Extras (Atualizado)
+// Semana: 02:48 até 05:00 = 2h 12min = 2.2 horas
+const WEEKDAY_EXTRA_DURATION = 2.2; 
 const WEEKEND_DURATION = 7.5; // 8h totais - 30min jantar
 
 export default function App() {
@@ -51,7 +52,6 @@ export default function App() {
     return () => unsubscribe();
   }, []);
 
-  // Login com Email/Senha
   const handleEmailLogin = async (e) => {
     e.preventDefault();
     setAuthError('');
@@ -63,7 +63,6 @@ export default function App() {
     }
   };
 
-  // Cadastro com Email/Senha
   const handleRegister = async (e) => {
     e.preventDefault();
     setAuthError('');
@@ -71,13 +70,7 @@ export default function App() {
       await createUserWithEmailAndPassword(auth, email, password);
     } catch (error) {
       console.error("Erro cadastro:", error);
-      if (error.code === 'auth/email-already-in-use') {
-        setAuthError('Este email já está cadastrado.');
-      } else if (error.code === 'auth/weak-password') {
-        setAuthError('A senha deve ter pelo menos 6 caracteres.');
-      } else {
-        setAuthError('Erro ao criar conta.');
-      }
+      setAuthError('Erro ao criar conta (min 6 digitos).');
     }
   };
 
@@ -101,7 +94,6 @@ export default function App() {
     return () => unsubscribe();
   }, [user]);
 
-  // Função de Salvar
   const saveToFirestore = async (newData) => {
     if (!user) return;
     setSaving(true);
@@ -115,7 +107,7 @@ export default function App() {
     }
   };
 
-  // --- LÓGICA FINANCEIRA ---
+  // --- CÁLCULO FINANCEIRO DETALHADO ---
   const calculateDailyEarnings = (date, entry) => {
     if (!entry) return 0;
     const dayOfWeek = date.getDay();
@@ -125,16 +117,24 @@ export default function App() {
     let total = 0;
 
     if (entry.weekendWork && isWeekend) {
-      const workedHours = 7.5; 
-      const nightHours = 1.5;
+      // Fim de Semana: 16h as 00h (7.5h trabalhadas)
+      // Adicional Noturno: Apenas das 22h as 00h (1.5h efetivas, descontando parte do jantar)
+      const nightHours = 1.5; 
+
       if (isSaturday) {
-        const tier1 = 2 * HOURLY_RATE * 1.5;
-        const tier2 = 2 * HOURLY_RATE * 1.6;
-        const tier3 = 3.5 * HOURLY_RATE * 2.0;
+        // Sábado: Escadinha
+        const tier1 = 2 * HOURLY_RATE * 1.5; // 50%
+        const tier2 = 2 * HOURLY_RATE * 1.6; // 60%
+        const tier3 = 3.5 * HOURLY_RATE * 2.0; // 100%
+        
+        // Noturno (aplica-se sobre a tarifa de 100% pois é no final do dia)
         const nightAd = nightHours * HOURLY_RATE * 2.0 * NIGHT_SHIFT_ADDITIONAL;
+        
         total += tier1 + tier2 + tier3 + nightAd;
+
       } else if (isSunday) {
-        const baseVal = workedHours * HOURLY_RATE * 2.0;
+        // Domingo: Tudo 100%
+        const baseVal = 7.5 * HOURLY_RATE * 2.0;
         const nightAd = nightHours * HOURLY_RATE * 2.0 * NIGHT_SHIFT_ADDITIONAL;
         total += baseVal + nightAd;
       }
@@ -143,48 +143,30 @@ export default function App() {
     if (!isWeekend) {
       if (entry.worked) total += BASE_DAILY_VALUE_NORMAL;
       if (entry.overtime) {
-        const extraHours = 2.666;
-        const overtimeRate = 1.5;
+        // Semana Extra: 02:48 as 05:00 (2.2h)
+        // Todas essas horas são noturnas
+        const extraHours = WEEKDAY_EXTRA_DURATION; 
+        const overtimeRate = 1.5; // 50%
+        
         const extraVal = extraHours * HOURLY_RATE * overtimeRate;
-        const nightVal = extraVal * NIGHT_SHIFT_ADDITIONAL; 
+        const nightVal = extraVal * NIGHT_SHIFT_ADDITIONAL; // 20% sobre a extra
+        
         total += (extraVal + nightVal);
       }
     }
     return total;
   };
 
+  // Helper para o Card Roxo (Valor das Extras)
   const calculateExtraValueOnly = (date, entry) => {
     if (!entry) return 0;
-    const dayOfWeek = date.getDay();
-    const isSaturday = dayOfWeek === 6;
-    const isSunday = dayOfWeek === 0;
-    const isWeekend = isSaturday || isSunday;
-    let extraValCalc = 0;
-
-    if (entry.weekendWork && isWeekend) {
-        const workedHours = 7.5; 
-        const nightHours = 1.5;
-        if (isSaturday) {
-          const tier1 = 2 * HOURLY_RATE * 1.5;
-          const tier2 = 2 * HOURLY_RATE * 1.6;
-          const tier3 = 3.5 * HOURLY_RATE * 2.0;
-          const nightAd = nightHours * HOURLY_RATE * 2.0 * NIGHT_SHIFT_ADDITIONAL;
-          extraValCalc += tier1 + tier2 + tier3 + nightAd;
-        } else if (isSunday) {
-          const baseVal = workedHours * HOURLY_RATE * 2.0;
-          const nightAd = nightHours * HOURLY_RATE * 2.0 * NIGHT_SHIFT_ADDITIONAL;
-          extraValCalc += baseVal + nightAd;
-        }
+    const total = calculateDailyEarnings(date, entry);
+    // Se for dia de semana normal, subtrai o salário base para pegar só a extra
+    if (!entry.weekendWork && entry.worked) {
+      return Math.max(0, total - BASE_DAILY_VALUE_NORMAL);
     }
-
-    if (!isWeekend && entry.overtime) {
-        const extraHours = 2.666;
-        const overtimeRate = 1.5;
-        const val = extraHours * HOURLY_RATE * overtimeRate;
-        const nightVal = val * NIGHT_SHIFT_ADDITIONAL; 
-        extraValCalc += (val + nightVal);
-    }
-    return extraValCalc;
+    // Se for fim de semana, tudo é extra
+    return total;
   };
 
   const calculateExtraHours = (date, entry) => {
@@ -197,7 +179,6 @@ export default function App() {
     return 0;
   };
 
-  // --- Auxiliares ---
   const getDaysInMonth = (year, month) => {
     const date = new Date(year, month, 1);
     const days = [];
@@ -214,7 +195,6 @@ export default function App() {
   const formatDateKey = (date) => date.toISOString().split('T')[0];
   const getDayName = (date) => ['Domingo', 'Segunda', 'Terça', 'Quarta', 'Quinta', 'Sexta', 'Sábado'][date.getDay()];
 
-  // --- Manipulação ---
   const toggleDay = (date, field) => {
     const key = formatDateKey(date);
     const isWeekend = date.getDay() === 0 || date.getDay() === 6;
@@ -245,7 +225,6 @@ export default function App() {
      saveToFirestore({ ...workData, [key]: { ...(workData[key] || {}), notes: text } });
   };
 
-  // --- Totais ---
   const stats = useMemo(() => {
     return days.reduce((acc, day) => {
       const key = formatDateKey(day);
@@ -347,7 +326,6 @@ export default function App() {
     );
   }
 
-  // --- TELA PRINCIPAL ---
   return (
     <div className="min-h-screen bg-gray-50 p-2 md:p-4 font-sans text-gray-800">
       <div className="max-w-6xl mx-auto bg-white shadow-xl rounded-xl overflow-hidden border border-gray-200">
