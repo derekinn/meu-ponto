@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import { ChevronLeft, ChevronRight, CheckSquare, Save, Loader2, DollarSign, Calculator, TrendingDown, LogIn, LogOut, User, Clock, Mail, Lock } from 'lucide-react';
+import { ChevronLeft, ChevronRight, CheckSquare, Save, Loader2, DollarSign, Calculator, TrendingDown, LogIn, LogOut, User, Clock, Mail, Lock, Moon, Sun } from 'lucide-react';
 import { initializeApp } from 'firebase/app';
 import { getAuth, onAuthStateChanged, signInWithEmailAndPassword, createUserWithEmailAndPassword, signOut } from 'firebase/auth';
 import { getFirestore, doc, setDoc, onSnapshot } from 'firebase/firestore';
@@ -25,10 +25,8 @@ const HOURLY_RATE = 8.10;
 const NIGHT_SHIFT_ADDITIONAL = 0.20; 
 const DISCOUNT_RATE = 0.11; 
 
-// Duração das Extras (Atualizado)
-// Semana: 02:48 até 05:00 = 2h 12min = 2.2 horas
 const WEEKDAY_EXTRA_DURATION = 2.2; 
-const WEEKEND_DURATION = 7.5; // 8h totais - 30min jantar
+const WEEKEND_DURATION = 7.5; 
 
 export default function App() {
   const [currentDate, setCurrentDate] = useState(new Date());
@@ -36,6 +34,9 @@ export default function App() {
   const [user, setUser] = useState(null);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  
+  // Estado do Modo Noturno (Começa desativado)
+  const [darkMode, setDarkMode] = useState(false);
 
   // Estados do Login
   const [email, setEmail] = useState('');
@@ -107,7 +108,7 @@ export default function App() {
     }
   };
 
-  // --- CÁLCULO FINANCEIRO DETALHADO ---
+  // --- CÁLCULOS FINANCEIROS ---
   const calculateDailyEarnings = (date, entry) => {
     if (!entry) return 0;
     const dayOfWeek = date.getDay();
@@ -117,23 +118,14 @@ export default function App() {
     let total = 0;
 
     if (entry.weekendWork && isWeekend) {
-      // Fim de Semana: 16h as 00h (7.5h trabalhadas)
-      // Adicional Noturno: Apenas das 22h as 00h (1.5h efetivas, descontando parte do jantar)
       const nightHours = 1.5; 
-
       if (isSaturday) {
-        // Sábado: Escadinha
-        const tier1 = 2 * HOURLY_RATE * 1.5; // 50%
-        const tier2 = 2 * HOURLY_RATE * 1.6; // 60%
-        const tier3 = 3.5 * HOURLY_RATE * 2.0; // 100%
-        
-        // Noturno (aplica-se sobre a tarifa de 100% pois é no final do dia)
+        const tier1 = 2 * HOURLY_RATE * 1.5;
+        const tier2 = 2 * HOURLY_RATE * 1.6;
+        const tier3 = 3.5 * HOURLY_RATE * 2.0;
         const nightAd = nightHours * HOURLY_RATE * 2.0 * NIGHT_SHIFT_ADDITIONAL;
-        
         total += tier1 + tier2 + tier3 + nightAd;
-
       } else if (isSunday) {
-        // Domingo: Tudo 100%
         const baseVal = 7.5 * HOURLY_RATE * 2.0;
         const nightAd = nightHours * HOURLY_RATE * 2.0 * NIGHT_SHIFT_ADDITIONAL;
         total += baseVal + nightAd;
@@ -143,29 +135,22 @@ export default function App() {
     if (!isWeekend) {
       if (entry.worked) total += BASE_DAILY_VALUE_NORMAL;
       if (entry.overtime) {
-        // Semana Extra: 02:48 as 05:00 (2.2h)
-        // Todas essas horas são noturnas
         const extraHours = WEEKDAY_EXTRA_DURATION; 
-        const overtimeRate = 1.5; // 50%
-        
+        const overtimeRate = 1.5;
         const extraVal = extraHours * HOURLY_RATE * overtimeRate;
-        const nightVal = extraVal * NIGHT_SHIFT_ADDITIONAL; // 20% sobre a extra
-        
+        const nightVal = extraVal * NIGHT_SHIFT_ADDITIONAL; 
         total += (extraVal + nightVal);
       }
     }
     return total;
   };
 
-  // Helper para o Card Roxo (Valor das Extras)
   const calculateExtraValueOnly = (date, entry) => {
     if (!entry) return 0;
     const total = calculateDailyEarnings(date, entry);
-    // Se for dia de semana normal, subtrai o salário base para pegar só a extra
     if (!entry.weekendWork && entry.worked) {
       return Math.max(0, total - BASE_DAILY_VALUE_NORMAL);
     }
-    // Se for fim de semana, tudo é extra
     return total;
   };
 
@@ -173,7 +158,6 @@ export default function App() {
     if (!entry) return 0;
     const dayOfWeek = date.getDay();
     const isWeekend = dayOfWeek === 0 || dayOfWeek === 6;
-
     if (isWeekend && entry.weekendWork) return WEEKEND_DURATION;
     if (!isWeekend && entry.overtime) return WEEKDAY_EXTRA_DURATION;
     return 0;
@@ -198,7 +182,6 @@ export default function App() {
   const toggleDay = (date, field) => {
     const key = formatDateKey(date);
     const isWeekend = date.getDay() === 0 || date.getDay() === 6;
-
     if ((field === 'overtime' || field === 'worked') && isWeekend) return; 
 
     setWorkData(prev => {
@@ -255,50 +238,55 @@ export default function App() {
   const monthNames = ["Janeiro", "Fevereiro", "Março", "Abril", "Maio", "Junho", "Julho", "Agosto", "Setembro", "Outubro", "Novembro", "Dezembro"];
 
   if (loading) {
-    return <div className="min-h-screen flex items-center justify-center bg-gray-50"><Loader2 className="w-8 h-8 animate-spin text-slate-600" /></div>;
+    return <div className="min-h-screen flex items-center justify-center bg-gray-50 dark:bg-slate-900"><Loader2 className="w-8 h-8 animate-spin text-slate-600 dark:text-slate-400" /></div>;
   }
 
   // --- TELA DE LOGIN ---
   if (!user) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-slate-100 p-4 font-sans text-gray-800">
-        <div className="bg-white p-8 rounded-xl shadow-xl w-full max-w-md border border-gray-200">
-          <div className="flex justify-center mb-6">
-            <div className="bg-blue-100 p-3 rounded-full">
-              <Calculator className="w-8 h-8 text-blue-600" />
-            </div>
+      <div className={`min-h-screen flex items-center justify-center p-4 font-sans transition-colors duration-300 ${darkMode ? 'bg-slate-900 text-white' : 'bg-slate-100 text-gray-800'}`}>
+        <div className={`p-8 rounded-xl shadow-xl w-full max-w-md border transition-colors ${darkMode ? 'bg-slate-800 border-slate-700' : 'bg-white border-gray-200'}`}>
+          <div className="flex justify-between items-start mb-6">
+             <div className="w-8"></div> {/* Spacer */}
+             <div className="bg-blue-100 p-3 rounded-full">
+               <Calculator className="w-8 h-8 text-blue-600" />
+             </div>
+             <button onClick={() => setDarkMode(!darkMode)} className={`p-2 rounded-full transition ${darkMode ? 'bg-slate-700 text-yellow-400 hover:bg-slate-600' : 'bg-gray-100 text-slate-600 hover:bg-gray-200'}`}>
+                {darkMode ? <Sun className="w-5 h-5"/> : <Moon className="w-5 h-5"/>}
+             </button>
           </div>
-          <h2 className="text-2xl font-bold text-center mb-2 text-slate-800">
+          
+          <h2 className={`text-2xl font-bold text-center mb-2 ${darkMode ? 'text-white' : 'text-slate-800'}`}>
             {isRegistering ? 'Criar Nova Conta' : 'Controle Financeiro'}
           </h2>
-          <p className="text-center text-gray-500 mb-6 text-sm">
+          <p className={`text-center mb-6 text-sm ${darkMode ? 'text-slate-400' : 'text-gray-500'}`}>
             {isRegistering ? 'Crie sua conta para salvar seus dados.' : 'Entre com seu e-mail e senha.'}
           </p>
 
           <form onSubmit={isRegistering ? handleRegister : handleEmailLogin} className="space-y-4">
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">E-mail</label>
+              <label className={`block text-sm font-medium mb-1 ${darkMode ? 'text-slate-300' : 'text-gray-700'}`}>E-mail</label>
               <div className="relative">
                 <Mail className="absolute left-3 top-2.5 w-5 h-5 text-gray-400" />
                 <input 
                   type="email" 
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
-                  className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none transition"
+                  className={`w-full pl-10 pr-4 py-2 border rounded-lg focus:ring-2 outline-none transition ${darkMode ? 'bg-slate-900 border-slate-600 focus:ring-blue-500 text-white' : 'bg-white border-gray-300 focus:ring-blue-500'}`}
                   placeholder="seu@email.com"
                   required
                 />
               </div>
             </div>
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Senha</label>
+              <label className={`block text-sm font-medium mb-1 ${darkMode ? 'text-slate-300' : 'text-gray-700'}`}>Senha</label>
               <div className="relative">
                 <Lock className="absolute left-3 top-2.5 w-5 h-5 text-gray-400" />
                 <input 
                   type="password" 
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
-                  className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none transition"
+                  className={`w-full pl-10 pr-4 py-2 border rounded-lg focus:ring-2 outline-none transition ${darkMode ? 'bg-slate-900 border-slate-600 focus:ring-blue-500 text-white' : 'bg-white border-gray-300 focus:ring-blue-500'}`}
                   placeholder="******"
                   required
                   minLength={6}
@@ -306,7 +294,7 @@ export default function App() {
               </div>
             </div>
 
-            {authError && <p className="text-red-500 text-sm text-center bg-red-50 p-2 rounded">{authError}</p>}
+            {authError && <p className="text-red-500 text-sm text-center bg-red-50/10 p-2 rounded">{authError}</p>}
 
             <button type="submit" className="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 rounded-lg transition shadow-md">
               {isRegistering ? 'Cadastrar' : 'Entrar'}
@@ -316,7 +304,7 @@ export default function App() {
           <div className="mt-6 text-center text-sm">
             <button 
               onClick={() => { setIsRegistering(!isRegistering); setAuthError(''); }}
-              className="text-blue-600 hover:text-blue-800 font-medium hover:underline"
+              className="text-blue-500 hover:text-blue-400 font-medium hover:underline"
             >
               {isRegistering ? 'Já tem conta? Faça login' : 'Não tem conta? Cadastre-se'}
             </button>
@@ -326,20 +314,25 @@ export default function App() {
     );
   }
 
+  // --- TELA PRINCIPAL ---
   return (
-    <div className="min-h-screen bg-gray-50 p-2 md:p-4 font-sans text-gray-800">
-      <div className="max-w-6xl mx-auto bg-white shadow-xl rounded-xl overflow-hidden border border-gray-200">
+    <div className={`min-h-screen p-2 md:p-4 font-sans transition-colors duration-300 ${darkMode ? 'bg-slate-950 text-slate-200' : 'bg-gray-50 text-gray-800'}`}>
+      <div className={`max-w-6xl mx-auto shadow-xl rounded-xl overflow-hidden border transition-colors ${darkMode ? 'bg-slate-900 border-slate-800' : 'bg-white border-gray-200'}`}>
         
         {/* Header */}
-        <div className="bg-slate-800 text-white p-6">
+        <div className={`p-6 transition-colors ${darkMode ? 'bg-slate-900' : 'bg-slate-800'} text-white`}>
           <div className="flex flex-col md:flex-row items-center justify-between mb-8 gap-4">
             <h1 className="text-2xl font-bold flex items-center gap-2">
               <Calculator className="w-8 h-8 text-green-400" />
               Controle Financeiro
             </h1>
             
-            {/* User Info */}
             <div className="flex items-center gap-3">
+              {/* Botão Modo Noturno */}
+              <button onClick={() => setDarkMode(!darkMode)} className="p-2 rounded-lg bg-slate-700/50 hover:bg-slate-600 transition text-yellow-400 border border-slate-600">
+                {darkMode ? <Sun className="w-5 h-5" /> : <Moon className="w-5 h-5" />}
+              </button>
+
               <div className="flex items-center gap-2 bg-slate-700/50 px-3 py-1.5 rounded-lg border border-slate-600">
                 <User className="w-4 h-4 text-green-400" />
                 <span className="text-xs font-bold max-w-[120px] truncate">{user.email}</span>
@@ -356,20 +349,20 @@ export default function App() {
 
           {/* Cards de Resumo */}
           <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
-            <div className="bg-slate-700/40 p-3 rounded-lg border border-slate-600/50 flex flex-col items-center justify-center">
+            <div className={`p-3 rounded-lg border flex flex-col items-center justify-center transition-colors ${darkMode ? 'bg-slate-800/50 border-slate-700' : 'bg-slate-700/40 border-slate-600/50'}`}>
               <span className="text-slate-400 text-[10px] uppercase font-bold tracking-wider">Dias Normais</span>
               <span className="text-2xl font-bold text-white mt-1">{stats.workedDays}</span>
             </div>
-            <div className="bg-slate-700/40 p-3 rounded-lg border border-slate-600/50 flex flex-col items-center justify-center">
+            <div className={`p-3 rounded-lg border flex flex-col items-center justify-center transition-colors ${darkMode ? 'bg-slate-800/50 border-slate-700' : 'bg-slate-700/40 border-slate-600/50'}`}>
               <span className="text-slate-400 text-[10px] uppercase font-bold tracking-wider">Extras (Semana)</span>
               <span className="text-2xl font-bold text-yellow-400 mt-1">{stats.overtimeDays}</span>
             </div>
-             <div className="bg-slate-700/40 p-3 rounded-lg border border-slate-600/50 flex flex-col items-center justify-center">
+             <div className={`p-3 rounded-lg border flex flex-col items-center justify-center transition-colors ${darkMode ? 'bg-slate-800/50 border-slate-700' : 'bg-slate-700/40 border-slate-600/50'}`}>
               <span className="text-slate-400 text-[10px] uppercase font-bold tracking-wider">Fim de Semana</span>
               <span className="text-2xl font-bold text-blue-300 mt-1">{stats.weekendDays}</span>
             </div>
 
-            {/* CARD: TOTAL HORAS EXTRAS (ARREDONDADO) */}
+            {/* CARD: TOTAL HORAS EXTRAS */}
             <div className="bg-indigo-900/60 p-3 rounded-lg border border-indigo-500/50 flex flex-col items-center justify-center relative overflow-hidden">
                <div className="absolute top-0 right-0 p-1 opacity-20"><Clock className="w-10 h-10 text-indigo-300"/></div>
                <span className="text-indigo-200 text-[10px] uppercase font-bold tracking-wider z-10">Total Horas Extras</span>
@@ -380,7 +373,6 @@ export default function App() {
                  <span className="text-[10px] font-medium text-indigo-300/80 mb-1">
                    ~{Math.round(stats.totalExtraHours)}h
                  </span>
-                 {/* VALOR DAS EXTRAS */}
                  <span className="text-xs font-semibold text-indigo-100 bg-indigo-800/40 px-2 py-0.5 rounded shadow-sm border border-indigo-700/50">
                    + R$ {stats.totalExtraValue.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                  </span>
@@ -410,18 +402,18 @@ export default function App() {
         <div className="overflow-x-auto">
           <table className="w-full text-left border-collapse">
             <thead>
-              <tr className="bg-gray-100 text-gray-600 text-xs uppercase tracking-wider border-b border-gray-200">
+              <tr className={`text-xs uppercase tracking-wider border-b transition-colors ${darkMode ? 'bg-slate-900 text-slate-400 border-slate-800' : 'bg-gray-100 text-gray-600 border-gray-200'}`}>
                 <th className="p-3 w-12 text-center">Dia</th>
                 <th className="p-3 w-20">Semana</th>
                 <th className="p-3 text-center w-16">Normal</th>
                 <th className="p-3 text-center w-16">Até 05h</th>
                 <th className="p-3 text-center w-20">Fim de Semana</th>
-                <th className="p-3 w-20 text-right bg-indigo-50/50 text-indigo-800">Qtd. Extra</th>
+                <th className={`p-3 w-20 text-right ${darkMode ? 'bg-indigo-900/20 text-indigo-300' : 'bg-indigo-50/50 text-indigo-800'}`}>Qtd. Extra</th>
                 <th className="p-3 w-24 text-right">Valor Dia</th>
                 <th className="p-3">Obs</th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-gray-100 text-sm">
+            <tbody className={`divide-y text-sm transition-colors ${darkMode ? 'divide-slate-800' : 'divide-gray-100'}`}>
               {days.map((date) => {
                 const key = formatDateKey(date);
                 const dayOfWeek = date.getDay();
@@ -433,30 +425,63 @@ export default function App() {
                 const extraHours = calculateExtraHours(date, entry);
 
                 return (
-                  <tr key={key} className={`hover:bg-blue-50 transition-colors ${isWeekend ? 'bg-orange-50/40' : 'bg-white'} ${isSunday ? 'border-b-4 border-gray-100' : ''}`}>
-                    <td className="p-3 text-center font-bold text-slate-700">{date.getDate()}</td>
-                    <td className={`p-3 font-medium ${isWeekend ? 'text-orange-700' : 'text-slate-600'}`}>{getDayName(date)}</td>
-                    <td className="p-3 text-center">{isWeekend ? (<div className="w-5 h-5 mx-auto rounded bg-gray-200 border border-gray-300 flex items-center justify-center opacity-50 cursor-not-allowed"><span className="block w-3 h-[1px] bg-gray-400 rotate-45"></span></div>) : (<input type="checkbox" checked={entry.worked} onChange={() => toggleDay(date, 'worked')} className="w-5 h-5 rounded border-gray-300 text-blue-600 cursor-pointer" />)}</td>
-                    <td className="p-3 text-center">{isWeekend ? (<div className="w-5 h-5 mx-auto rounded bg-gray-200 border border-gray-300 flex items-center justify-center opacity-50 cursor-not-allowed"><span className="block w-3 h-[1px] bg-gray-400 rotate-45"></span></div>) : (<input type="checkbox" checked={entry.overtime} onChange={() => toggleDay(date, 'overtime')} className="w-5 h-5 rounded border-gray-300 text-yellow-500 cursor-pointer" />)}</td>
+                  <tr key={key} className={`transition-colors 
+                    ${darkMode 
+                      ? (isWeekend ? 'bg-orange-900/10 hover:bg-slate-800' : 'hover:bg-slate-800') 
+                      : (isWeekend ? 'bg-orange-50/40 hover:bg-blue-50' : 'hover:bg-blue-50')
+                    }
+                    ${isSunday ? (darkMode ? 'border-b-4 border-slate-900' : 'border-b-4 border-gray-100') : ''}
+                  `}>
+                    <td className={`p-3 text-center font-bold ${darkMode ? 'text-slate-400' : 'text-slate-700'}`}>{date.getDate()}</td>
+                    <td className={`p-3 font-medium ${isWeekend ? 'text-orange-500' : (darkMode ? 'text-slate-500' : 'text-slate-600')}`}>{getDayName(date)}</td>
+                    
+                    {/* Checkboxes */}
+                    <td className="p-3 text-center">{isWeekend ? (<div className={`w-5 h-5 mx-auto rounded border flex items-center justify-center opacity-50 cursor-not-allowed ${darkMode ? 'bg-slate-800 border-slate-700' : 'bg-gray-200 border-gray-300'}`}><span className="block w-3 h-[1px] bg-gray-400 rotate-45"></span></div>) : (<input type="checkbox" checked={entry.worked} onChange={() => toggleDay(date, 'worked')} className="w-5 h-5 rounded border-gray-300 text-blue-600 cursor-pointer" />)}</td>
+                    <td className="p-3 text-center">{isWeekend ? (<div className={`w-5 h-5 mx-auto rounded border flex items-center justify-center opacity-50 cursor-not-allowed ${darkMode ? 'bg-slate-800 border-slate-700' : 'bg-gray-200 border-gray-300'}`}><span className="block w-3 h-[1px] bg-gray-400 rotate-45"></span></div>) : (<input type="checkbox" checked={entry.overtime} onChange={() => toggleDay(date, 'overtime')} className="w-5 h-5 rounded border-gray-300 text-yellow-500 cursor-pointer" />)}</td>
                     <td className="p-3 text-center">{isWeekend ? (<input type="checkbox" checked={entry.weekendWork} onChange={() => toggleDay(date, 'weekendWork')} className="w-5 h-5 rounded border-orange-300 text-orange-600 cursor-pointer" />) : (<span className="text-gray-300">-</span>)}</td>
                     
-                    <td className="p-3 text-right font-mono font-bold text-indigo-700 bg-indigo-50/30">
+                    {/* Qtd Extra */}
+                    <td className={`p-3 text-right font-mono font-bold ${darkMode ? 'text-indigo-400 bg-indigo-900/10' : 'text-indigo-700 bg-indigo-50/30'}`}>
                         {extraHours > 0 ? (
                             <span>+{extraHours.toFixed(1)}h</span>
                         ) : (
-                            <span className="text-gray-300">-</span>
+                            <span className="text-gray-500/50">-</span>
                         )}
                     </td>
 
-                    <td className="p-3 text-right font-mono font-semibold text-slate-700">{dayValue > 0 ? (<span className="bg-green-100 text-green-800 px-2 py-1 rounded text-xs">R$ {dayValue.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</span>) : (<span className="text-gray-300">-</span>)}</td>
-                    <td className="p-3"><input type="text" value={entry.notes} onChange={(e) => handleNoteChange(date, e.target.value)} onBlur={(e) => handleNoteBlur(date, e.target.value)} className="w-full bg-transparent border-b border-transparent focus:border-blue-300 focus:bg-white outline-none text-xs text-gray-500 py-1" /></td>
+                    {/* Valor Dia */}
+                    <td className={`p-3 text-right font-mono font-semibold ${darkMode ? 'text-slate-300' : 'text-slate-700'}`}>
+                      {dayValue > 0 ? (
+                        <span className={`px-2 py-1 rounded text-xs ${darkMode ? 'bg-green-900/30 text-green-400' : 'bg-green-100 text-green-800'}`}>
+                          R$ {dayValue.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+                        </span>
+                      ) : (
+                        <span className="text-gray-500/50">-</span>
+                      )}
+                    </td>
+
+                    {/* Obs */}
+                    <td className="p-3">
+                      <input 
+                        type="text" 
+                        value={entry.notes} 
+                        onChange={(e) => handleNoteChange(date, e.target.value)} 
+                        onBlur={(e) => handleNoteBlur(date, e.target.value)} 
+                        className={`w-full bg-transparent border-b outline-none text-xs py-1 transition-colors ${darkMode ? 'border-transparent focus:border-blue-500 text-slate-400 focus:text-white' : 'border-transparent focus:border-blue-300 text-gray-500'}`} 
+                      />
+                    </td>
                   </tr>
                 );
               })}
             </tbody>
           </table>
         </div>
-        <div className="p-3 bg-gray-50 border-t border-gray-200 flex justify-between items-center text-[10px] text-gray-400"><span>Controle Completo.</span><span>ID: {user?.uid?.slice(0, 6)}</span></div>
+        
+        {/* Footer */}
+        <div className={`p-3 border-t flex justify-between items-center text-[10px] ${darkMode ? 'bg-slate-900 border-slate-800 text-slate-600' : 'bg-gray-50 border-gray-200 text-gray-400'}`}>
+          <span>Controle Completo v2.0</span>
+          <span>ID: {user?.uid?.slice(0, 6)}</span>
+        </div>
       </div>
     </div>
   );
