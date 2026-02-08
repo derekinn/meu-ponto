@@ -35,8 +35,11 @@ export default function App() {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   
-  // Estado do Modo Noturno (Começa desativado)
-  const [darkMode, setDarkMode] = useState(false);
+  // Estado do Modo Noturno (Lê do localStorage se existir)
+  const [darkMode, setDarkMode] = useState(() => {
+    const saved = localStorage.getItem('darkMode');
+    return saved === 'true';
+  });
 
   // Estados do Login
   const [email, setEmail] = useState('');
@@ -44,7 +47,7 @@ export default function App() {
   const [isRegistering, setIsRegistering] = useState(false);
   const [authError, setAuthError] = useState('');
 
-  // 1. Monitorar Autenticação
+  // 1. Monitorar Autenticação e Tema
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, (currentUser) => {
       setUser(currentUser);
@@ -52,6 +55,16 @@ export default function App() {
     });
     return () => unsubscribe();
   }, []);
+
+  // Efeito para "pintar" o fundo do navegador (Remove bordas brancas)
+  useEffect(() => {
+    localStorage.setItem('darkMode', darkMode);
+    if (darkMode) {
+      document.body.style.backgroundColor = '#020617'; // slate-950
+    } else {
+      document.body.style.backgroundColor = '#f9fafb'; // gray-50
+    }
+  }, [darkMode]);
 
   const handleEmailLogin = async (e) => {
     e.preventDefault();
@@ -238,20 +251,20 @@ export default function App() {
   const monthNames = ["Janeiro", "Fevereiro", "Março", "Abril", "Maio", "Junho", "Julho", "Agosto", "Setembro", "Outubro", "Novembro", "Dezembro"];
 
   if (loading) {
-    return <div className="min-h-screen flex items-center justify-center bg-gray-50 dark:bg-slate-900"><Loader2 className="w-8 h-8 animate-spin text-slate-600 dark:text-slate-400" /></div>;
+    return <div className="min-h-screen flex items-center justify-center bg-gray-50 dark:bg-slate-950"><Loader2 className="w-8 h-8 animate-spin text-slate-600 dark:text-slate-400" /></div>;
   }
 
   // --- TELA DE LOGIN ---
   if (!user) {
     return (
-      <div className={`min-h-screen flex items-center justify-center p-4 font-sans transition-colors duration-300 ${darkMode ? 'bg-slate-900 text-white' : 'bg-slate-100 text-gray-800'}`}>
-        <div className={`p-8 rounded-xl shadow-xl w-full max-w-md border transition-colors ${darkMode ? 'bg-slate-800 border-slate-700' : 'bg-white border-gray-200'}`}>
+      <div className={`min-h-screen flex items-center justify-center p-4 font-sans transition-colors duration-300 ${darkMode ? 'bg-slate-950 text-white' : 'bg-slate-100 text-gray-800'}`}>
+        <div className={`p-8 rounded-xl shadow-xl w-full max-w-md border transition-colors ${darkMode ? 'bg-slate-900 border-slate-800' : 'bg-white border-gray-200'}`}>
           <div className="flex justify-between items-start mb-6">
              <div className="w-8"></div> {/* Spacer */}
              <div className="bg-blue-100 p-3 rounded-full">
                <Calculator className="w-8 h-8 text-blue-600" />
              </div>
-             <button onClick={() => setDarkMode(!darkMode)} className={`p-2 rounded-full transition ${darkMode ? 'bg-slate-700 text-yellow-400 hover:bg-slate-600' : 'bg-gray-100 text-slate-600 hover:bg-gray-200'}`}>
+             <button onClick={() => setDarkMode(!darkMode)} className={`p-2 rounded-full transition ${darkMode ? 'bg-slate-800 text-yellow-400 hover:bg-slate-700' : 'bg-gray-100 text-slate-600 hover:bg-gray-200'}`}>
                 {darkMode ? <Sun className="w-5 h-5"/> : <Moon className="w-5 h-5"/>}
              </button>
           </div>
@@ -272,7 +285,7 @@ export default function App() {
                   type="email" 
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
-                  className={`w-full pl-10 pr-4 py-2 border rounded-lg focus:ring-2 outline-none transition ${darkMode ? 'bg-slate-900 border-slate-600 focus:ring-blue-500 text-white' : 'bg-white border-gray-300 focus:ring-blue-500'}`}
+                  className={`w-full pl-10 pr-4 py-2 border rounded-lg focus:ring-2 outline-none transition ${darkMode ? 'bg-slate-950 border-slate-700 focus:ring-blue-500 text-white' : 'bg-white border-gray-300 focus:ring-blue-500'}`}
                   placeholder="seu@email.com"
                   required
                 />
@@ -286,7 +299,7 @@ export default function App() {
                   type="password" 
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
-                  className={`w-full pl-10 pr-4 py-2 border rounded-lg focus:ring-2 outline-none transition ${darkMode ? 'bg-slate-900 border-slate-600 focus:ring-blue-500 text-white' : 'bg-white border-gray-300 focus:ring-blue-500'}`}
+                  className={`w-full pl-10 pr-4 py-2 border rounded-lg focus:ring-2 outline-none transition ${darkMode ? 'bg-slate-950 border-slate-700 focus:ring-blue-500 text-white' : 'bg-white border-gray-300 focus:ring-blue-500'}`}
                   placeholder="******"
                   required
                   minLength={6}
@@ -316,29 +329,39 @@ export default function App() {
 
   // --- TELA PRINCIPAL ---
   return (
-    <div className={`min-h-screen p-2 md:p-4 font-sans transition-colors duration-300 ${darkMode ? 'bg-slate-950 text-slate-200' : 'bg-gray-50 text-gray-800'}`}>
-      <div className={`max-w-6xl mx-auto shadow-xl rounded-xl overflow-hidden border transition-colors ${darkMode ? 'bg-slate-900 border-slate-800' : 'bg-white border-gray-200'}`}>
+    // Usa min-h-[100dvh] para corrigir problemas de altura no mobile
+    // Remove padding externo (p-0) no mobile para parecer app nativo
+    <div className={`min-h-[100dvh] md:p-4 font-sans transition-colors duration-300 ${darkMode ? 'bg-slate-950 text-slate-200' : 'bg-gray-50 text-gray-800'}`}>
+      
+      {/* Container Principal: Full width no mobile, card centralizado no desktop */}
+      <div className={`w-full md:max-w-6xl mx-auto shadow-none md:shadow-xl md:rounded-xl overflow-hidden border-b md:border transition-colors ${darkMode ? 'bg-slate-900 border-slate-800' : 'bg-white border-gray-200'}`}>
         
         {/* Header */}
-        <div className={`p-6 transition-colors ${darkMode ? 'bg-slate-900' : 'bg-slate-800'} text-white`}>
-          <div className="flex flex-col md:flex-row items-center justify-between mb-8 gap-4">
-            <h1 className="text-2xl font-bold flex items-center gap-2">
-              <Calculator className="w-8 h-8 text-green-400" />
+        <div className={`p-4 md:p-6 transition-colors ${darkMode ? 'bg-slate-900' : 'bg-slate-800'} text-white`}>
+          
+          {/* Top Row: Title + Controls */}
+          <div className="flex flex-col md:flex-row items-center justify-between mb-6 gap-4">
+            <h1 className="text-xl md:text-2xl font-bold flex items-center gap-2">
+              <Calculator className="w-6 h-6 md:w-8 md:h-8 text-green-400" />
               Controle Financeiro
             </h1>
             
-            <div className="flex items-center gap-3">
-              {/* Botão Modo Noturno */}
+            {/* Controls Group */}
+            <div className="flex flex-wrap justify-center items-center gap-2 md:gap-3 w-full md:w-auto">
+              
+              {/* Botão Modo Noturno (Sempre Visível) */}
               <button onClick={() => setDarkMode(!darkMode)} className="p-2 rounded-lg bg-slate-700/50 hover:bg-slate-600 transition text-yellow-400 border border-slate-600">
                 {darkMode ? <Sun className="w-5 h-5" /> : <Moon className="w-5 h-5" />}
               </button>
 
-              <div className="flex items-center gap-2 bg-slate-700/50 px-3 py-1.5 rounded-lg border border-slate-600">
+              {/* User Info */}
+              <div className="flex items-center gap-2 bg-slate-700/50 px-3 py-1.5 rounded-lg border border-slate-600 flex-1 md:flex-none justify-center">
                 <User className="w-4 h-4 text-green-400" />
-                <span className="text-xs font-bold max-w-[120px] truncate">{user.email}</span>
+                <span className="text-xs font-bold max-w-[100px] md:max-w-[150px] truncate">{user.email}</span>
                 <button onClick={handleLogout} className="ml-2 hover:text-red-300 transition" title="Sair"><LogOut className="w-4 h-4"/></button>
               </div>
 
+              {/* Navegação Mês */}
               <div className="flex items-center gap-2 bg-slate-700 rounded-lg p-1 shadow-inner">
                 <button onClick={() => changeMonth(-1)} className="p-2 hover:bg-slate-600 rounded-md"><ChevronLeft className="w-5 h-5" /></button>
                 <span className="font-semibold w-24 md:w-32 text-center text-sm uppercase">{monthNames[currentMonth]}</span>
@@ -348,7 +371,7 @@ export default function App() {
           </div>
 
           {/* Cards de Resumo */}
-          <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
+          <div className="grid grid-cols-2 md:grid-cols-5 gap-2 md:gap-3">
             <div className={`p-3 rounded-lg border flex flex-col items-center justify-center transition-colors ${darkMode ? 'bg-slate-800/50 border-slate-700' : 'bg-slate-700/40 border-slate-600/50'}`}>
               <span className="text-slate-400 text-[10px] uppercase font-bold tracking-wider">Dias Normais</span>
               <span className="text-2xl font-bold text-white mt-1">{stats.workedDays}</span>
@@ -380,7 +403,7 @@ export default function App() {
             </div>
             
             {/* CARD: FINANCEIRO */}
-            <div className="bg-gradient-to-br from-green-900 to-green-800 p-3 rounded-lg border border-green-600 shadow-lg transform scale-105 flex flex-col justify-center relative overflow-hidden">
+            <div className="bg-gradient-to-br from-green-900 to-green-800 p-3 rounded-lg border border-green-600 shadow-lg transform scale-105 flex flex-col justify-center relative overflow-hidden col-span-2 md:col-span-1">
                <div className="absolute top-0 right-0 p-1 opacity-10"><DollarSign className="w-16 h-16 text-white"/></div>
                <div className="flex justify-between w-full items-end z-10 mb-1">
                   <span className="text-green-200/70 text-[10px] uppercase font-bold tracking-wider">Bruto</span>
