@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { ChevronLeft, ChevronRight, CheckSquare, Save, Loader2, DollarSign, Calculator, TrendingDown, LogIn, LogOut, User, Clock, Mail, Lock, Moon, Sun } from 'lucide-react';
 import { initializeApp } from 'firebase/app';
-import { getAuth, onAuthStateChanged, signInWithEmailAndPassword, createUserWithEmailAndPassword, signOut } from 'firebase/auth';
+import { getAuth, onAuthStateChanged, signInWithEmailAndPassword, signOut } from 'firebase/auth';
 import { getFirestore, doc, setDoc, onSnapshot } from 'firebase/firestore';
 
 // --- CONFIGURAÇÃO DO FIREBASE ---
@@ -35,7 +35,7 @@ export default function App() {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   
-  // Estado do Modo Noturno (Lê do localStorage se existir)
+  // Estado do Modo Noturno
   const [darkMode, setDarkMode] = useState(() => {
     const saved = localStorage.getItem('darkMode');
     return saved === 'true';
@@ -44,7 +44,6 @@ export default function App() {
   // Estados do Login
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
-  const [isRegistering, setIsRegistering] = useState(false);
   const [authError, setAuthError] = useState('');
 
   // 1. Monitorar Autenticação e Tema
@@ -56,13 +55,12 @@ export default function App() {
     return () => unsubscribe();
   }, []);
 
-  // Efeito para "pintar" o fundo do navegador (Remove bordas brancas)
   useEffect(() => {
     localStorage.setItem('darkMode', darkMode);
     if (darkMode) {
-      document.body.style.backgroundColor = '#020617'; // slate-950
+      document.body.style.backgroundColor = '#020617';
     } else {
-      document.body.style.backgroundColor = '#f9fafb'; // gray-50
+      document.body.style.backgroundColor = '#f9fafb';
     }
   }, [darkMode]);
 
@@ -74,17 +72,6 @@ export default function App() {
     } catch (error) {
       console.error("Erro login:", error);
       setAuthError('Email ou senha incorretos.');
-    }
-  };
-
-  const handleRegister = async (e) => {
-    e.preventDefault();
-    setAuthError('');
-    try {
-      await createUserWithEmailAndPassword(auth, email, password);
-    } catch (error) {
-      console.error("Erro cadastro:", error);
-      setAuthError('Erro ao criar conta (min 6 digitos).');
     }
   };
 
@@ -254,7 +241,7 @@ export default function App() {
     return <div className="min-h-screen flex items-center justify-center bg-gray-50 dark:bg-slate-950"><Loader2 className="w-8 h-8 animate-spin text-slate-600 dark:text-slate-400" /></div>;
   }
 
-  // --- TELA DE LOGIN ---
+  // --- TELA DE LOGIN (Somente Entrar) ---
   if (!user) {
     return (
       <div className={`min-h-screen flex items-center justify-center p-4 font-sans transition-colors duration-300 ${darkMode ? 'bg-slate-950 text-white' : 'bg-slate-100 text-gray-800'}`}>
@@ -270,13 +257,13 @@ export default function App() {
           </div>
           
           <h2 className={`text-2xl font-bold text-center mb-2 ${darkMode ? 'text-white' : 'text-slate-800'}`}>
-            {isRegistering ? 'Criar Nova Conta' : 'Controle Financeiro'}
+            Acesse seu Ponto
           </h2>
           <p className={`text-center mb-6 text-sm ${darkMode ? 'text-slate-400' : 'text-gray-500'}`}>
-            {isRegistering ? 'Crie sua conta para salvar seus dados.' : 'Entre com seu e-mail e senha.'}
+            Entre com seu e-mail e senha.
           </p>
 
-          <form onSubmit={isRegistering ? handleRegister : handleEmailLogin} className="space-y-4">
+          <form onSubmit={handleEmailLogin} className="space-y-4">
             <div>
               <label className={`block text-sm font-medium mb-1 ${darkMode ? 'text-slate-300' : 'text-gray-700'}`}>E-mail</label>
               <div className="relative">
@@ -310,18 +297,9 @@ export default function App() {
             {authError && <p className="text-red-500 text-sm text-center bg-red-50/10 p-2 rounded">{authError}</p>}
 
             <button type="submit" className="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 rounded-lg transition shadow-md">
-              {isRegistering ? 'Cadastrar' : 'Entrar'}
+              Entrar
             </button>
           </form>
-
-          <div className="mt-6 text-center text-sm">
-            <button 
-              onClick={() => { setIsRegistering(!isRegistering); setAuthError(''); }}
-              className="text-blue-500 hover:text-blue-400 font-medium hover:underline"
-            >
-              {isRegistering ? 'Já tem conta? Faça login' : 'Não tem conta? Cadastre-se'}
-            </button>
-          </div>
         </div>
       </div>
     );
@@ -329,39 +307,28 @@ export default function App() {
 
   // --- TELA PRINCIPAL ---
   return (
-    // Usa min-h-[100dvh] para corrigir problemas de altura no mobile
-    // Remove padding externo (p-0) no mobile para parecer app nativo
     <div className={`min-h-[100dvh] md:p-4 font-sans transition-colors duration-300 ${darkMode ? 'bg-slate-950 text-slate-200' : 'bg-gray-50 text-gray-800'}`}>
-      
-      {/* Container Principal: Full width no mobile, card centralizado no desktop */}
       <div className={`w-full md:max-w-6xl mx-auto shadow-none md:shadow-xl md:rounded-xl overflow-hidden border-b md:border transition-colors ${darkMode ? 'bg-slate-900 border-slate-800' : 'bg-white border-gray-200'}`}>
         
         {/* Header */}
         <div className={`p-4 md:p-6 transition-colors ${darkMode ? 'bg-slate-900' : 'bg-slate-800'} text-white`}>
-          
-          {/* Top Row: Title + Controls */}
           <div className="flex flex-col md:flex-row items-center justify-between mb-6 gap-4">
             <h1 className="text-xl md:text-2xl font-bold flex items-center gap-2">
               <Calculator className="w-6 h-6 md:w-8 md:h-8 text-green-400" />
               Controle Financeiro
             </h1>
             
-            {/* Controls Group */}
             <div className="flex flex-wrap justify-center items-center gap-2 md:gap-3 w-full md:w-auto">
-              
-              {/* Botão Modo Noturno (Sempre Visível) */}
               <button onClick={() => setDarkMode(!darkMode)} className="p-2 rounded-lg bg-slate-700/50 hover:bg-slate-600 transition text-yellow-400 border border-slate-600">
                 {darkMode ? <Sun className="w-5 h-5" /> : <Moon className="w-5 h-5" />}
               </button>
 
-              {/* User Info */}
               <div className="flex items-center gap-2 bg-slate-700/50 px-3 py-1.5 rounded-lg border border-slate-600 flex-1 md:flex-none justify-center">
                 <User className="w-4 h-4 text-green-400" />
                 <span className="text-xs font-bold max-w-[100px] md:max-w-[150px] truncate">{user.email}</span>
                 <button onClick={handleLogout} className="ml-2 hover:text-red-300 transition" title="Sair"><LogOut className="w-4 h-4"/></button>
               </div>
 
-              {/* Navegação Mês */}
               <div className="flex items-center gap-2 bg-slate-700 rounded-lg p-1 shadow-inner">
                 <button onClick={() => changeMonth(-1)} className="p-2 hover:bg-slate-600 rounded-md"><ChevronLeft className="w-5 h-5" /></button>
                 <span className="font-semibold w-24 md:w-32 text-center text-sm uppercase">{monthNames[currentMonth]}</span>
